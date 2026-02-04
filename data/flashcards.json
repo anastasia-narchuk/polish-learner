@@ -1,0 +1,41 @@
+[
+  {
+    "id": "1770240323974",
+    "polish": "gorączka",
+    "russian": "жар",
+    "baseForm": "gorączka",
+    "example": "...gorączkę...",
+    "createdAt": "2026-02-04T21:25:23.975Z",
+    "stats": {
+      "correct": 0,
+      "incorrect": 0,
+      "lastReview": null
+    }
+  },
+  {
+    "id": "1770240331290",
+    "polish": "absolutnie",
+    "russian": "абсолютно",
+    "baseForm": "absolutnie",
+    "example": "...absolutnie...",
+    "createdAt": "2026-02-04T21:25:31.290Z",
+    "stats": {
+      "correct": 0,
+      "incorrect": 0,
+      "lastReview": null
+    }
+  },
+  {
+    "id": "1770240362557",
+    "polish": "dolegać",
+    "russian": "беспокоит",
+    "baseForm": "dolegać",
+    "example": "...dolega...",
+    "createdAt": "2026-02-04T21:26:02.557Z",
+    "stats": {
+      "correct": 0,
+      "incorrect": 0,
+      "lastReview": null
+    }
+  }
+]
