@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Polski Learner</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Polski Learner</h1>
+      <nav>
+        <button class="tab-btn active" data-tab="reading">Чтение</button>
+        <button class="tab-btn" data-tab="flashcards">
+          Карточки <span id="cards-count">(0)</span>
+        </button>
+      </nav>
+    </header>
+
+    <!-- Вкладка чтения -->
+    <main id="reading-tab" class="tab-content active">
+      <section class="generator">
+        <input
+          type="text"
+          id="topic-input"
+          placeholder="Тема текста (напр.: поход в магазин, разговор с врачом)"
+        >
+        <button id="generate-btn">Сгенерировать</button>
+      </section>
+
+      <div class="content-area">
+        <section class="text-area">
+          <div id="polish-text" class="polish-text">
+            <p class="placeholder">Введи тему и нажми "Сгенерировать" чтобы получить текст на польском</p>
+          </div>
+        </section>
+
+        <aside class="sidebar">
+          <div id="translation-panel" class="translation-panel hidden">
+            <h3>Перевод</h3>
+            <div id="translation-content">
+              <p class="selected-word" id="selected-word"></p>
+              <p class="translation" id="translation-text"></p>
+              <p class="base-form" id="base-form"></p>
+              <p class="part-of-speech" id="part-of-speech"></p>
+              <p class="note" id="translation-note"></p>
+            </div>
+            <button id="add-card-btn" class="add-card-btn">+ Добавить в карточки</button>
+          </div>
+
+          <div id="empty-sidebar" class="empty-sidebar">
+            <p>Кликни на слово или выдели текст для перевода</p>
+          </div>
+        </aside>
+      </div>
+
+      <!-- Кнопка перевода выделенного текста -->
+      <div id="selection-popup" class="selection-popup hidden">
+        <button id="translate-selection-btn">Перевести</button>
+      </div>
+    </main>
+
+    <!-- Вкладка карточек -->
+    <main id="flashcards-tab" class="tab-content">
+      <section class="flashcards-controls">
+        <button id="start-review-btn" class="review-btn">Начать повторение</button>
+        <button id="show-list-btn" class="list-btn active">Список карточек</button>
+      </section>
+
+      <!-- Режим просмотра списка -->
+      <section id="cards-list" class="cards-list">
+        <div id="cards-container"></div>
+      </section>
+
+      <!-- Режим повторения -->
+      <section id="review-mode" class="review-mode hidden">
+        <div class="review-card">
+          <div class="card-front" id="card-front">
+            <p class="review-word" id="review-word"></p>
+            <p class="review-example" id="review-example"></p>
+          </div>
+          <div class="card-back hidden" id="card-back">
+            <p class="review-translation" id="review-translation"></p>
+          </div>
+        </div>
+
+        <div class="review-controls hidden" id="review-controls">
+          <button id="btn-incorrect" class="btn-incorrect">Не знаю</button>
+          <button id="btn-correct" class="btn-correct">Знаю</button>
+        </div>
+
+        <button id="show-answer-btn" class="show-answer-btn">Показать перевод</button>
+
+        <div class="review-progress">
+          <span id="review-progress">0 / 0</span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="loading-overlay" class="loading-overlay hidden">
+    <div class="spinner"></div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
