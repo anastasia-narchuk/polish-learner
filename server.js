@@ -1,5 +1,5 @@
 import express from 'express';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import mongoose from 'mongoose';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import dotenv from 'dotenv';
@@ -18,19 +18,26 @@ app.use(express.static(join(__dirname, 'public')));
 const POE_API_KEY = process.env.POE_API_KEY;
 const POE_BASE_URL = 'https://api.poe.com/v1';
 
-const FLASHCARDS_PATH = join(__dirname, 'data', 'flashcards.json');
+// MongoDB connection
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('Connected to MongoDB'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
-function loadFlashcards() {
-  if (!existsSync(FLASHCARDS_PATH)) {
-    return [];
+// Flashcard Schema
+const flashcardSchema = new mongoose.Schema({
+  polish: { type: String, required: true },
+  russian: { type: String, required: true },
+  baseForm: String,
+  example: String,
+  createdAt: { type: Date, default: Date.now },
+  stats: {
+    correct: { type: Number, default: 0 },
+    incorrect: { type: Number, default: 0 },
+    lastReview: Date
   }
-  const data = readFileSync(FLASHCARDS_PATH, 'utf-8');
-  return JSON.parse(data);
-}
+});
 
-function saveFlashcards(cards) {
-  writeFileSync(FLASHCARDS_PATH, JSON.stringify(cards, null, 2), 'utf-8');
-}
+const Flashcard = mongoose.model('Flashcard', flashcardSchema);
 
 // Helper function to call Poe API (OpenAI-compatible)
 async function callPoeAPI(messages, maxTokens = 1024) {
@@ -132,84 +139,115 @@ app.post('/api/translate', async (req, res) => {
 });
 
 // Получить все флешкарточки
-app.get('/api/flashcards', (req, res) => {
-  const cards = loadFlashcards();
-  res.json(cards);
+app.get('/api/flashcards', async (req, res) => {
+  try {
+    const cards = await Flashcard.find().sort({ createdAt: -1 });
+    // Преобразуем _id в id для совместимости с фронтендом
+    const cardsWithId = cards.map(card => ({
+      id: card._id.toString(),
+      polish: card.polish,
+      russian: card.russian,
+      baseForm: card.baseForm,
+      example: card.example,
+      createdAt: card.createdAt,
+      stats: card.stats
+    }));
+    res.json(cardsWithId);
+  } catch (error) {
+    console.error('Error loading flashcards:', error);
+    res.status(500).json({ error: 'Failed to load flashcards' });
+  }
 });
 
 // Добавить флешкарточку
-app.post('/api/flashcards', (req, res) => {
+app.post('/api/flashcards', async (req, res) => {
   const { polish, russian, example, baseForm } = req.body;
 
   if (!polish || !russian) {
     return res.status(400).json({ error: 'Polish and Russian are required' });
   }
 
-  const cards = loadFlashcards();
+  try {
+    // Проверяем, нет ли уже такой карточки
+    const exists = await Flashcard.findOne({
+      polish: { $regex: new RegExp(`^${polish}$`, 'i') }
+    });
 
-  // Проверяем, нет ли уже такой карточки
-  const exists = cards.some(c => c.polish.toLowerCase() === polish.toLowerCase());
-  if (exists) {
-    return res.status(409).json({ error: 'Card already exists' });
-  }
-
-  const newCard = {
-    id: Date.now().toString(),
-    polish,
-    russian,
-    baseForm: baseForm || polish,
-    example: example || '',
-    createdAt: new Date().toISOString(),
-    stats: {
-      correct: 0,
-      incorrect: 0,
-      lastReview: null
+    if (exists) {
+      return res.status(409).json({ error: 'Card already exists' });
     }
-  };
 
-  cards.push(newCard);
-  saveFlashcards(cards);
+    const newCard = new Flashcard({
+      polish,
+      russian,
+      baseForm: baseForm || polish,
+      example: example || ''
+    });
 
-  res.status(201).json(newCard);
+    await newCard.save();
+
+    res.status(201).json({
+      id: newCard._id.toString(),
+      polish: newCard.polish,
+      russian: newCard.russian,
+      baseForm: newCard.baseForm,
+      example: newCard.example,
+      createdAt: newCard.createdAt,
+      stats: newCard.stats
+    });
+  } catch (error) {
+    console.error('Error adding flashcard:', error);
+    res.status(500).json({ error: 'Failed to add flashcard' });
+  }
 });
 
 // Удалить флешкарточку
-app.delete('/api/flashcards/:id', (req, res) => {
+app.delete('/api/flashcards/:id', async (req, res) => {
   const { id } = req.params;
-  let cards = loadFlashcards();
 
-  const initialLength = cards.length;
-  cards = cards.filter(c => c.id !== id);
+  try {
+    const result = await Flashcard.findByIdAndDelete(id);
 
-  if (cards.length === initialLength) {
-    return res.status(404).json({ error: 'Card not found' });
+    if (!result) {
+      return res.status(404).json({ error: 'Card not found' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting flashcard:', error);
+    res.status(500).json({ error: 'Failed to delete flashcard' });
   }
-
-  saveFlashcards(cards);
-  res.json({ success: true });
 });
 
 // Обновить статистику карточки
-app.patch('/api/flashcards/:id/stats', (req, res) => {
+app.patch('/api/flashcards/:id/stats', async (req, res) => {
   const { id } = req.params;
   const { correct } = req.body;
 
-  const cards = loadFlashcards();
-  const card = cards.find(c => c.id === id);
+  try {
+    const update = correct
+      ? { $inc: { 'stats.correct': 1 }, $set: { 'stats.lastReview': new Date() } }
+      : { $inc: { 'stats.incorrect': 1 }, $set: { 'stats.lastReview': new Date() } };
 
-  if (!card) {
-    return res.status(404).json({ error: 'Card not found' });
+    const card = await Flashcard.findByIdAndUpdate(id, update, { new: true });
+
+    if (!card) {
+      return res.status(404).json({ error: 'Card not found' });
+    }
+
+    res.json({
+      id: card._id.toString(),
+      polish: card.polish,
+      russian: card.russian,
+      baseForm: card.baseForm,
+      example: card.example,
+      createdAt: card.createdAt,
+      stats: card.stats
+    });
+  } catch (error) {
+    console.error('Error updating stats:', error);
+    res.status(500).json({ error: 'Failed to update stats' });
   }
-
-  if (correct) {
-    card.stats.correct++;
-  } else {
-    card.stats.incorrect++;
-  }
-  card.stats.lastReview = new Date().toISOString();
-
-  saveFlashcards(cards);
-  res.json(card);
 });
 
 app.listen(PORT, () => {
