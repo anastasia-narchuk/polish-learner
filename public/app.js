@@ -45,6 +45,14 @@ const btnIncorrect = document.getElementById('btn-incorrect');
 const btnCorrect = document.getElementById('btn-correct');
 const reviewProgress = document.getElementById('review-progress');
 
+// Security: HTML escape function to prevent XSS
+function escapeHtml(text) {
+  if (typeof text !== 'string') return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 // Utils
 function showLoading() {
   loadingOverlay.classList.remove('hidden');
@@ -85,7 +93,10 @@ async function generateText() {
       body: JSON.stringify({ topic })
     });
 
-    if (!res.ok) throw new Error('Failed to generate');
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to generate');
+    }
 
     const data = await res.json();
     currentText = data.text;
@@ -93,39 +104,55 @@ async function generateText() {
     hideTranslationPanel();
   } catch (err) {
     console.error(err);
-    showToast('Ошибка генерации текста', 'error');
+    showToast(err.message || 'Ошибка генерации текста', 'error');
   } finally {
     hideLoading();
     generateBtn.disabled = false;
   }
 }
 
+// Safe text rendering without innerHTML XSS vulnerability
 function renderText(text) {
-  // Разбиваем текст на слова, сохраняя пунктуацию
+  // Clear existing content
+  polishText.innerHTML = '';
+
+  // Split text into words, preserving whitespace
   const words = text.split(/(\s+)/);
 
-  const html = words.map(part => {
-    // Пропускаем пробелы
+  words.forEach(part => {
+    // Whitespace - add as text node
     if (/^\s+$/.test(part)) {
-      return part;
+      polishText.appendChild(document.createTextNode(part));
+      return;
     }
 
-    // Извлекаем слово и пунктуацию
+    // Extract word and punctuation
     const match = part.match(/^([^\wąćęłńóśźżĄĆĘŁŃÓŚŹŻ]*)([\wąćęłńóśźżĄĆĘŁŃÓŚŹŻ]+)([^\wąćęłńóśźżĄĆĘŁŃÓŚŹŻ]*)$/i);
 
     if (match) {
       const [, before, word, after] = match;
-      return `${before}<span class="word" data-word="${word}">${word}</span>${after}`;
+
+      // Add punctuation before word
+      if (before) {
+        polishText.appendChild(document.createTextNode(before));
+      }
+
+      // Create clickable word span (safe - using textContent)
+      const span = document.createElement('span');
+      span.className = 'word';
+      span.dataset.word = word;
+      span.textContent = word;
+      span.addEventListener('click', handleWordClick);
+      polishText.appendChild(span);
+
+      // Add punctuation after word
+      if (after) {
+        polishText.appendChild(document.createTextNode(after));
+      }
+    } else {
+      // Non-matching text - add as text node (safe)
+      polishText.appendChild(document.createTextNode(part));
     }
-
-    return part;
-  }).join('');
-
-  polishText.innerHTML = html;
-
-  // Добавляем обработчики кликов на слова
-  document.querySelectorAll('.word').forEach(wordEl => {
-    wordEl.addEventListener('click', handleWordClick);
   });
 }
 
@@ -153,13 +180,16 @@ async function translateWord(word) {
       body: JSON.stringify({ word, context: currentText })
     });
 
-    if (!res.ok) throw new Error('Failed to translate');
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to translate');
+    }
 
     const data = await res.json();
     showTranslation(word, data);
   } catch (err) {
     console.error(err);
-    showToast('Ошибка перевода', 'error');
+    showToast(err.message || 'Ошибка перевода', 'error');
   } finally {
     hideLoading();
   }
@@ -168,6 +198,7 @@ async function translateWord(word) {
 function showTranslation(word, data) {
   currentTranslation = { word, ...data };
 
+  // Safe: using textContent instead of innerHTML
   selectedWordEl.textContent = word;
   translationTextEl.textContent = data.translation;
   baseFormEl.textContent = data.baseForm && data.baseForm !== word
@@ -299,7 +330,7 @@ async function addFlashcard() {
 
 async function deleteFlashcard(id) {
   try {
-    const res = await fetch(`/api/flashcards/${id}`, {
+    const res = await fetch(`/api/flashcards/${encodeURIComponent(id)}`, {
       method: 'DELETE'
     });
 
@@ -316,25 +347,59 @@ async function deleteFlashcard(id) {
   }
 }
 
+// Safe cards list rendering without XSS
 function renderCardsList() {
+  // Clear container
+  cardsContainer.innerHTML = '';
+
   if (flashcards.length === 0) {
-    cardsContainer.innerHTML = '<p class="empty-cards">Пока нет карточек. Добавь слова из текстов!</p>';
+    const emptyMsg = document.createElement('p');
+    emptyMsg.className = 'empty-cards';
+    emptyMsg.textContent = 'Пока нет карточек. Добавь слова из текстов!';
+    cardsContainer.appendChild(emptyMsg);
     return;
   }
 
-  cardsContainer.innerHTML = flashcards.map(card => `
-    <div class="card-item" data-id="${card.id}">
-      <div class="card-item-content">
-        <div class="card-item-polish">${card.polish}</div>
-        <div class="card-item-russian">${card.russian}</div>
-        ${card.example ? `<div class="card-item-example">${card.example}</div>` : ''}
-        <div class="card-item-stats">
-          Верно: ${card.stats?.correct || 0} | Неверно: ${card.stats?.incorrect || 0}
-        </div>
-      </div>
-      <button class="card-delete-btn" onclick="deleteFlashcard('${card.id}')">Удалить</button>
-    </div>
-  `).join('');
+  flashcards.forEach(card => {
+    const cardItem = document.createElement('div');
+    cardItem.className = 'card-item';
+    cardItem.dataset.id = card.id;
+
+    const content = document.createElement('div');
+    content.className = 'card-item-content';
+
+    const polishDiv = document.createElement('div');
+    polishDiv.className = 'card-item-polish';
+    polishDiv.textContent = card.polish; // Safe: textContent
+
+    const russianDiv = document.createElement('div');
+    russianDiv.className = 'card-item-russian';
+    russianDiv.textContent = card.russian; // Safe: textContent
+
+    content.appendChild(polishDiv);
+    content.appendChild(russianDiv);
+
+    if (card.example) {
+      const exampleDiv = document.createElement('div');
+      exampleDiv.className = 'card-item-example';
+      exampleDiv.textContent = card.example; // Safe: textContent
+      content.appendChild(exampleDiv);
+    }
+
+    const statsDiv = document.createElement('div');
+    statsDiv.className = 'card-item-stats';
+    statsDiv.textContent = `Верно: ${card.stats?.correct || 0} | Неверно: ${card.stats?.incorrect || 0}`;
+    content.appendChild(statsDiv);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'card-delete-btn';
+    deleteBtn.textContent = 'Удалить';
+    deleteBtn.addEventListener('click', () => deleteFlashcard(card.id));
+
+    cardItem.appendChild(content);
+    cardItem.appendChild(deleteBtn);
+    cardsContainer.appendChild(cardItem);
+  });
 }
 
 // Review Mode
@@ -372,6 +437,7 @@ function showCurrentCard() {
 
   const card = reviewQueue[currentReviewIndex];
 
+  // Safe: using textContent
   reviewWord.textContent = card.polish;
   reviewExample.textContent = card.example || '';
   reviewTranslation.textContent = card.russian;
@@ -393,7 +459,7 @@ async function markCard(correct) {
   const card = reviewQueue[currentReviewIndex];
 
   try {
-    await fetch(`/api/flashcards/${card.id}/stats`, {
+    await fetch(`/api/flashcards/${encodeURIComponent(card.id)}/stats`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ correct })
@@ -451,9 +517,6 @@ showListBtn.addEventListener('click', showCardsList);
 showAnswerBtn.addEventListener('click', showAnswer);
 btnIncorrect.addEventListener('click', () => markCard(false));
 btnCorrect.addEventListener('click', () => markCard(true));
-
-// Make deleteFlashcard available globally for onclick
-window.deleteFlashcard = deleteFlashcard;
 
 // Init
 loadFlashcards();
