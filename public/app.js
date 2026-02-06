@@ -5,6 +5,17 @@ let flashcards = [];
 let reviewQueue = [];
 let currentReviewIndex = 0;
 
+// Theme initialization
+function initTheme() {
+  const savedTheme = localStorage.getItem('theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+}
+
+// Initialize theme immediately
+initTheme();
+
 // DOM Elements
 const topicInput = document.getElementById('topic-input');
 const generateBtn = document.getElementById('generate-btn');
@@ -517,6 +528,21 @@ showListBtn.addEventListener('click', showCardsList);
 showAnswerBtn.addEventListener('click', showAnswer);
 btnIncorrect.addEventListener('click', () => markCard(false));
 btnCorrect.addEventListener('click', () => markCard(true));
+
+// Theme Toggle
+const themeToggle = document.getElementById('theme-toggle');
+
+themeToggle.addEventListener('click', () => {
+  const currentTheme = document.documentElement.getAttribute('data-theme');
+  const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', newTheme);
+  localStorage.setItem('theme', newTheme);
+});
+
+// Initialize Lucide icons
+if (typeof lucide !== 'undefined') {
+  lucide.createIcons();
+}
 
 // Init
 loadFlashcards();

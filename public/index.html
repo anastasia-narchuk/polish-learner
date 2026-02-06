@@ -4,15 +4,46 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Polski Learner</title>
+
+  <!-- Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="style.css">
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>Polski Learner</h1>
+      <div class="header-left">
+        <h1>Polski Learner</h1>
+        <button id="theme-toggle" class="theme-toggle" aria-label="Переключить тему">
+          <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="4"></circle>
+            <path d="M12 2v2"></path>
+            <path d="M12 20v2"></path>
+            <path d="m4.93 4.93 1.41 1.41"></path>
+            <path d="m17.66 17.66 1.41 1.41"></path>
+            <path d="M2 12h2"></path>
+            <path d="M20 12h2"></path>
+            <path d="m6.34 17.66-1.41 1.41"></path>
+            <path d="m19.07 4.93-1.41 1.41"></path>
+          </svg>
+          <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path>
+          </svg>
+        </button>
+      </div>
       <nav>
-        <button class="tab-btn active" data-tab="reading">Чтение</button>
+        <button class="tab-btn active" data-tab="reading">
+          <i data-lucide="book-open"></i>
+          Чтение
+        </button>
         <button class="tab-btn" data-tab="flashcards">
+          <i data-lucide="layers"></i>
           Карточки <span id="cards-count">(0)</span>
         </button>
       </nav>
@@ -26,7 +57,10 @@
           id="topic-input"
           placeholder="Тема текста (напр.: поход в магазин, разговор с врачом)"
         >
-        <button id="generate-btn">Сгенерировать</button>
+        <button id="generate-btn">
+          <i data-lucide="sparkles"></i>
+          Сгенерировать
+        </button>
       </section>
 
       <div class="content-area">
@@ -46,10 +80,14 @@
               <p class="part-of-speech" id="part-of-speech"></p>
               <p class="note" id="translation-note"></p>
             </div>
-            <button id="add-card-btn" class="add-card-btn">+ Добавить в карточки</button>
+            <button id="add-card-btn" class="add-card-btn">
+              <i data-lucide="plus"></i>
+              Добавить в карточки
+            </button>
           </div>
 
           <div id="empty-sidebar" class="empty-sidebar">
+            <i data-lucide="mouse-pointer-click"></i>
             <p>Кликни на слово или выдели текст для перевода</p>
           </div>
         </aside>
@@ -57,15 +95,24 @@
 
       <!-- Кнопка перевода выделенного текста -->
       <div id="selection-popup" class="selection-popup hidden">
-        <button id="translate-selection-btn">Перевести</button>
+        <button id="translate-selection-btn">
+          <i data-lucide="languages"></i>
+          Перевести
+        </button>
       </div>
     </main>
 
     <!-- Вкладка карточек -->
     <main id="flashcards-tab" class="tab-content">
       <section class="flashcards-controls">
-        <button id="start-review-btn" class="review-btn">Начать повторение</button>
-        <button id="show-list-btn" class="list-btn active">Список карточек</button>
+        <button id="start-review-btn" class="review-btn">
+          <i data-lucide="repeat"></i>
+          Начать повторение
+        </button>
+        <button id="show-list-btn" class="list-btn active">
+          <i data-lucide="list"></i>
+          Список карточек
+        </button>
       </section>
 
       <!-- Режим просмотра списка -->
@@ -85,12 +132,21 @@
           </div>
         </div>
 
-        <div class="review-controls hidden" id="review-controls">
-          <button id="btn-incorrect" class="btn-incorrect">Не знаю</button>
-          <button id="btn-correct" class="btn-correct">Знаю</button>
-        </div>
+        <button id="show-answer-btn" class="show-answer-btn">
+          <i data-lucide="eye"></i>
+          Показать перевод
+        </button>
 
-        <button id="show-answer-btn" class="show-answer-btn">Показать перевод</button>
+        <div class="review-controls hidden" id="review-controls">
+          <button id="btn-incorrect" class="btn-incorrect">
+            <i data-lucide="x"></i>
+            Не знаю
+          </button>
+          <button id="btn-correct" class="btn-correct">
+            <i data-lucide="check"></i>
+            Знаю
+          </button>
+        </div>
 
         <div class="review-progress">
           <span id="review-progress">0 / 0</span>
