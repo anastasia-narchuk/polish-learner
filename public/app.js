@@ -5,6 +5,10 @@ let flashcards = [];
 let reviewQueue = [];
 let currentReviewIndex = 0;
 
+// Import state
+let importMode = 'comma';
+let proposedCards = [];
+
 // Theme initialization
 function initTheme() {
   const savedTheme = localStorage.getItem('theme');
@@ -529,6 +533,532 @@ showAnswerBtn.addEventListener('click', showAnswer);
 btnIncorrect.addEventListener('click', () => markCard(false));
 btnCorrect.addEventListener('click', () => markCard(true));
 
+// ========================================
+// Import Feature
+// ========================================
+
+const importBtn = document.getElementById('import-btn');
+const importModal = document.getElementById('import-modal');
+const modalCloseBtn = document.getElementById('modal-close-btn');
+const modalTabs = document.querySelectorAll('.modal-tab');
+const importTextarea = document.getElementById('import-textarea');
+const importTextareaContainer = document.getElementById('import-textarea-container');
+const manualEntryContainer = document.getElementById('manual-entry-container');
+const manualPolishInput = document.getElementById('manual-polish');
+const manualRussianInput = document.getElementById('manual-russian');
+const importHint = document.getElementById('import-hint');
+const importProcessBtn = document.getElementById('import-process-btn');
+const importProcessBtnText = document.getElementById('import-process-btn-text');
+const importInputPhase = document.getElementById('import-input-phase');
+const importPreviewPhase = document.getElementById('import-preview-phase');
+const importPreviewList = document.getElementById('import-preview-list');
+const importWarnings = document.getElementById('import-warnings');
+const warningsList = document.getElementById('warnings-list');
+const importUnrecognized = document.getElementById('import-unrecognized');
+const unrecognizedList = document.getElementById('unrecognized-list');
+const importBackBtn = document.getElementById('import-back-btn');
+const importSaveBtn = document.getElementById('import-save-btn');
+const selectedCountEl = document.getElementById('selected-count');
+const unrecognizedBadge = document.getElementById('unrecognized-badge');
+const unrecognizedReviewSection = document.getElementById('import-unrecognized-review');
+const unrecognizedReviewList = document.getElementById('unrecognized-review-list');
+
+// Open import modal
+importBtn.addEventListener('click', () => {
+  importModal.classList.remove('hidden');
+  resetImportState();
+  loadUnrecognizedWords();
+  if (typeof lucide !== 'undefined') {
+    lucide.createIcons();
+  }
+});
+
+// Close modal
+function closeImportModal() {
+  importModal.classList.add('hidden');
+  resetImportState();
+}
+
+modalCloseBtn.addEventListener('click', closeImportModal);
+
+importModal.addEventListener('click', (e) => {
+  if (e.target === importModal) {
+    closeImportModal();
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !importModal.classList.contains('hidden')) {
+    closeImportModal();
+  }
+});
+
+// Reset import state
+function resetImportState() {
+  importMode = 'comma';
+  proposedCards = [];
+  importTextarea.value = '';
+  manualPolishInput.value = '';
+  manualRussianInput.value = '';
+  importInputPhase.classList.remove('hidden');
+  importPreviewPhase.classList.add('hidden');
+  updateImportUI();
+
+  // Reset tabs
+  modalTabs.forEach(t => t.classList.remove('active'));
+  modalTabs[0].classList.add('active');
+}
+
+// Mode tab switching
+modalTabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    modalTabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    importMode = tab.dataset.importMode;
+    updateImportUI();
+  });
+});
+
+function updateImportUI() {
+  if (importMode === 'manual') {
+    importTextareaContainer.classList.add('hidden');
+    manualEntryContainer.classList.remove('hidden');
+    importProcessBtnText.textContent = 'Добавить карточку';
+  } else {
+    importTextareaContainer.classList.remove('hidden');
+    manualEntryContainer.classList.add('hidden');
+    importProcessBtnText.textContent = 'Обработать';
+
+    const placeholders = {
+      comma: 'kot, pies, dom, szkoła',
+      lines: 'kot\npies\ndom\nszkoła',
+      notes: 'Вставьте заметки с урока...',
+    };
+    const hints = {
+      comma: 'Введите польские слова через запятую',
+      lines: 'Одно слово на строку',
+      notes: 'Вставьте необработанные заметки — AI извлечёт польские слова',
+    };
+    importTextarea.placeholder = placeholders[importMode];
+    importHint.textContent = hints[importMode];
+  }
+
+  // Re-init icons
+  if (typeof lucide !== 'undefined') {
+    lucide.createIcons();
+  }
+}
+
+// Process button click
+importProcessBtn.addEventListener('click', async () => {
+  if (importMode === 'manual') {
+    await handleManualAdd();
+    return;
+  }
+
+  const text = importTextarea.value.trim();
+  if (!text) {
+    showToast('Введите текст', 'error');
+    return;
+  }
+
+  showLoading();
+  importProcessBtn.disabled = true;
+
+  try {
+    if (importMode === 'notes') {
+      // Mode 3: send raw text
+      const res = await fetch('/api/import/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Import failed');
+      }
+      const data = await res.json();
+      proposedCards = data.proposed;
+      showImportPreview(data.proposed, data.duplicates, data.warnings, data.unrecognized);
+    } else {
+      // Modes 1 & 2: parse words locally, send array
+      let words;
+      if (importMode === 'comma') {
+        words = text.split(',').map(w => w.trim()).filter(Boolean);
+      } else {
+        words = text.split('\n').map(w => w.trim()).filter(Boolean);
+      }
+
+      if (words.length === 0) {
+        showToast('Не найдено слов', 'error');
+        return;
+      }
+      if (words.length > 50) {
+        showToast('Максимум 50 слов за раз', 'error');
+        return;
+      }
+
+      const res = await fetch('/api/import/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ words, mode: importMode })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Import failed');
+      }
+      const data = await res.json();
+      proposedCards = data.proposed;
+      showImportPreview(data.proposed, data.duplicates, [], []);
+    }
+  } catch (err) {
+    console.error(err);
+    showToast(err.message || 'Ошибка импорта', 'error');
+  } finally {
+    hideLoading();
+    importProcessBtn.disabled = false;
+  }
+});
+
+// Show preview phase
+function showImportPreview(proposed, duplicates, warnings, unrecognized) {
+  importInputPhase.classList.add('hidden');
+  importPreviewPhase.classList.remove('hidden');
+
+  renderPreviewCards(proposed, duplicates);
+
+  // Warnings
+  if (warnings && warnings.length > 0) {
+    importWarnings.classList.remove('hidden');
+    warningsList.innerHTML = '';
+    warnings.forEach(w => {
+      const li = document.createElement('li');
+      li.className = 'import-warning-item';
+      li.textContent = w;
+      warningsList.appendChild(li);
+    });
+  } else {
+    importWarnings.classList.add('hidden');
+  }
+
+  // Unrecognized
+  if (unrecognized && unrecognized.length > 0) {
+    importUnrecognized.classList.remove('hidden');
+    unrecognizedList.innerHTML = '';
+    unrecognized.forEach(u => {
+      const li = document.createElement('li');
+      li.className = 'import-unrecognized-item';
+      li.textContent = `${u.text} — ${u.aiNote}`;
+      unrecognizedList.appendChild(li);
+    });
+  } else {
+    importUnrecognized.classList.add('hidden');
+  }
+}
+
+// Render preview cards
+function renderPreviewCards(proposed, duplicates) {
+  importPreviewList.innerHTML = '';
+
+  if (proposed.length === 0 && duplicates.length === 0) {
+    const emptyMsg = document.createElement('p');
+    emptyMsg.className = 'empty-cards';
+    emptyMsg.textContent = 'Нет новых слов для добавления';
+    importPreviewList.appendChild(emptyMsg);
+    updateSelectedCount();
+    return;
+  }
+
+  proposed.forEach((card, index) => {
+    const row = document.createElement('div');
+    row.className = 'preview-card-item';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = true;
+    checkbox.dataset.index = index;
+    checkbox.addEventListener('change', updateSelectedCount);
+
+    const polishSpan = document.createElement('span');
+    polishSpan.className = 'preview-card-polish';
+    polishSpan.textContent = card.polish;
+
+    const arrow = document.createElement('span');
+    arrow.className = 'preview-card-arrow';
+    arrow.textContent = ' → ';
+
+    const russianSpan = document.createElement('span');
+    russianSpan.className = 'preview-card-russian';
+    russianSpan.textContent = card.russian;
+
+    row.appendChild(checkbox);
+    row.appendChild(polishSpan);
+    row.appendChild(arrow);
+    row.appendChild(russianSpan);
+
+    // Show spelling correction indicator
+    if (card.originalText && card.originalText !== card.polish) {
+      const corrected = document.createElement('span');
+      corrected.className = 'preview-card-correction';
+      corrected.textContent = `было: ${card.originalText}`;
+      row.appendChild(corrected);
+    }
+
+    importPreviewList.appendChild(row);
+  });
+
+  // Show duplicates as disabled rows
+  duplicates.forEach(word => {
+    const row = document.createElement('div');
+    row.className = 'preview-card-item duplicate';
+
+    const label = document.createElement('span');
+    label.className = 'preview-card-polish';
+    label.textContent = word;
+
+    const dupLabel = document.createElement('span');
+    dupLabel.className = 'preview-card-russian';
+    dupLabel.textContent = '— уже в карточках';
+    dupLabel.style.color = 'var(--accent-warning)';
+
+    row.appendChild(label);
+    row.appendChild(dupLabel);
+    importPreviewList.appendChild(row);
+  });
+
+  updateSelectedCount();
+}
+
+// Update selected count display
+function updateSelectedCount() {
+  const checked = importPreviewList.querySelectorAll('input[type="checkbox"]:checked');
+  selectedCountEl.textContent = checked.length;
+  importSaveBtn.disabled = checked.length === 0;
+}
+
+// Back button
+importBackBtn.addEventListener('click', () => {
+  importPreviewPhase.classList.add('hidden');
+  importInputPhase.classList.remove('hidden');
+  proposedCards = [];
+  if (typeof lucide !== 'undefined') {
+    lucide.createIcons();
+  }
+});
+
+// Save selected cards
+importSaveBtn.addEventListener('click', async () => {
+  const checkboxes = importPreviewList.querySelectorAll('input[type="checkbox"]:checked');
+  const selectedIndices = Array.from(checkboxes).map(cb => parseInt(cb.dataset.index));
+  const selectedCards = selectedIndices.map(i => proposedCards[i]);
+
+  if (selectedCards.length === 0) {
+    showToast('Не выбрано ни одной карточки', 'error');
+    return;
+  }
+
+  showLoading();
+  importSaveBtn.disabled = true;
+
+  try {
+    const res = await fetch('/api/flashcards/bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cards: selectedCards })
+    });
+
+    if (!res.ok) throw new Error('Failed to save cards');
+    const data = await res.json();
+
+    // Update local state
+    flashcards.push(...data.added);
+    updateCardsCount();
+    renderCardsList();
+
+    const msg = `Добавлено ${data.count.added} карточек` +
+      (data.count.skipped > 0 ? `, пропущено ${data.count.skipped}` : '');
+    showToast(msg, 'success');
+
+    closeImportModal();
+  } catch (err) {
+    console.error(err);
+    showToast('Ошибка сохранения', 'error');
+  } finally {
+    hideLoading();
+    importSaveBtn.disabled = false;
+  }
+});
+
+// Manual card creation (Mode 4)
+async function handleManualAdd() {
+  const polish = manualPolishInput.value.trim();
+  const russian = manualRussianInput.value.trim();
+
+  if (!polish || !russian) {
+    showToast('Заполните оба поля', 'error');
+    return;
+  }
+
+  showLoading();
+  importProcessBtn.disabled = true;
+
+  try {
+    const res = await fetch('/api/flashcards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ polish, russian, baseForm: polish, example: '' })
+    });
+
+    if (res.status === 409) {
+      showToast('Карточка уже существует', 'error');
+      return;
+    }
+    if (!res.ok) throw new Error('Failed to add card');
+
+    const newCard = await res.json();
+    flashcards.push(newCard);
+    updateCardsCount();
+    renderCardsList();
+
+    // Clear inputs for next entry
+    manualPolishInput.value = '';
+    manualRussianInput.value = '';
+    manualPolishInput.focus();
+
+    showToast('Карточка добавлена', 'success');
+  } catch (err) {
+    console.error(err);
+    showToast('Ошибка добавления', 'error');
+  } finally {
+    hideLoading();
+    importProcessBtn.disabled = false;
+  }
+}
+
+// Unrecognized words management
+async function loadUnrecognizedWords() {
+  try {
+    const res = await fetch('/api/unrecognized');
+    const words = await res.json();
+    const pending = words.filter(w => w.status === 'pending');
+
+    // Update badge
+    if (pending.length > 0) {
+      unrecognizedBadge.textContent = pending.length;
+      unrecognizedBadge.classList.remove('hidden');
+    } else {
+      unrecognizedBadge.classList.add('hidden');
+    }
+
+    // Render review list inside modal
+    renderUnrecognizedReview(pending);
+  } catch (err) {
+    console.error('Error loading unrecognized words:', err);
+  }
+}
+
+function renderUnrecognizedReview(words) {
+  if (words.length === 0) {
+    unrecognizedReviewSection.classList.add('hidden');
+    return;
+  }
+
+  unrecognizedReviewSection.classList.remove('hidden');
+  unrecognizedReviewList.innerHTML = '';
+
+  words.forEach(word => {
+    const item = document.createElement('div');
+    item.className = 'unrecognized-review-item';
+
+    const textDiv = document.createElement('div');
+    textDiv.className = 'unrecognized-review-text';
+
+    const wordSpan = document.createElement('div');
+    wordSpan.className = 'unrecognized-review-word';
+    wordSpan.textContent = word.text;
+
+    const noteSpan = document.createElement('div');
+    noteSpan.className = 'unrecognized-review-note';
+    noteSpan.textContent = word.aiNote || '';
+
+    textDiv.appendChild(wordSpan);
+    textDiv.appendChild(noteSpan);
+
+    const actions = document.createElement('div');
+    actions.className = 'unrecognized-review-actions';
+
+    const createBtn = document.createElement('button');
+    createBtn.className = 'unrecognized-action-btn create';
+    createBtn.textContent = 'Создать';
+    createBtn.addEventListener('click', () => {
+      // Switch to manual mode pre-filled
+      modalTabs.forEach(t => t.classList.remove('active'));
+      modalTabs[3].classList.add('active');
+      importMode = 'manual';
+      updateImportUI();
+      manualPolishInput.value = word.text;
+      manualPolishInput.focus();
+      importInputPhase.classList.remove('hidden');
+      importPreviewPhase.classList.add('hidden');
+
+      // Mark as resolved
+      markUnrecognizedWord(word.id, 'resolved');
+    });
+
+    const dismissBtn = document.createElement('button');
+    dismissBtn.className = 'unrecognized-action-btn dismiss';
+    dismissBtn.textContent = 'Убрать';
+    dismissBtn.addEventListener('click', () => {
+      markUnrecognizedWord(word.id, 'dismissed');
+      item.remove();
+      // Update badge count
+      const remaining = unrecognizedReviewList.children.length;
+      if (remaining === 0) {
+        unrecognizedReviewSection.classList.add('hidden');
+        unrecognizedBadge.classList.add('hidden');
+      } else {
+        unrecognizedBadge.textContent = remaining;
+      }
+    });
+
+    actions.appendChild(createBtn);
+    actions.appendChild(dismissBtn);
+
+    item.appendChild(textDiv);
+    item.appendChild(actions);
+    unrecognizedReviewList.appendChild(item);
+  });
+}
+
+async function markUnrecognizedWord(id, status) {
+  try {
+    await fetch(`/api/unrecognized/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+  } catch (err) {
+    console.error('Error updating unrecognized word:', err);
+  }
+}
+
+// Load unrecognized badge on init
+async function loadUnrecognizedBadge() {
+  try {
+    const res = await fetch('/api/unrecognized');
+    const words = await res.json();
+    const pending = words.filter(w => w.status === 'pending');
+    if (pending.length > 0) {
+      unrecognizedBadge.textContent = pending.length;
+      unrecognizedBadge.classList.remove('hidden');
+    } else {
+      unrecognizedBadge.classList.add('hidden');
+    }
+  } catch (err) {
+    // Silent fail for badge
+  }
+}
+
 // Theme Toggle
 const themeToggle = document.getElementById('theme-toggle');
 
@@ -546,3 +1076,4 @@ if (typeof lucide !== 'undefined') {
 
 // Init
 loadFlashcards();
+loadUnrecognizedBadge();

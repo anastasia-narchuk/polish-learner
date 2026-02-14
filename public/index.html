@@ -113,6 +113,11 @@
           <i data-lucide="list"></i>
           Список карточек
         </button>
+        <button id="import-btn" class="import-btn">
+          <i data-lucide="file-text"></i>
+          Импорт слов
+          <span id="unrecognized-badge" class="unrecognized-badge hidden">0</span>
+        </button>
       </section>
 
       <!-- Режим просмотра списка -->
@@ -153,6 +158,83 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <!-- Import Modal -->
+  <div id="import-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Импорт слов</h2>
+        <button id="modal-close-btn" class="modal-close" aria-label="Закрыть">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+
+      <!-- Mode tabs inside modal -->
+      <div class="modal-tabs">
+        <button class="modal-tab active" data-import-mode="comma">Через запятую</button>
+        <button class="modal-tab" data-import-mode="lines">По строкам</button>
+        <button class="modal-tab" data-import-mode="notes">Заметки</button>
+        <button class="modal-tab" data-import-mode="manual">Вручную</button>
+      </div>
+
+      <!-- Input phase -->
+      <div id="import-input-phase">
+        <!-- Modes 1-3: textarea -->
+        <div id="import-textarea-container">
+          <textarea id="import-textarea" rows="8"
+            placeholder="kot, pies, dom, szkoła"></textarea>
+          <p class="import-hint" id="import-hint">Введите польские слова через запятую</p>
+        </div>
+
+        <!-- Mode 4: manual entry -->
+        <div id="manual-entry-container" class="hidden">
+          <input type="text" id="manual-polish" class="manual-input" placeholder="Польское слово" maxlength="200">
+          <input type="text" id="manual-russian" class="manual-input" placeholder="Русский перевод" maxlength="200">
+        </div>
+
+        <button id="import-process-btn" class="import-process-btn">
+          <i data-lucide="search"></i>
+          <span id="import-process-btn-text">Обработать</span>
+        </button>
+      </div>
+
+      <!-- Preview/review phase -->
+      <div id="import-preview-phase" class="hidden">
+        <div id="import-preview-list" class="import-preview-list"></div>
+
+        <!-- Warnings section for Mode 3 -->
+        <div id="import-warnings" class="import-section hidden">
+          <h4>Предупреждения</h4>
+          <ul id="warnings-list"></ul>
+        </div>
+
+        <!-- Unrecognized section for Mode 3 -->
+        <div id="import-unrecognized" class="import-section hidden">
+          <h4>Нераспознанные слова</h4>
+          <p class="import-section-note">Сохранены для просмотра позже</p>
+          <ul id="unrecognized-list"></ul>
+        </div>
+
+        <div class="import-actions">
+          <button id="import-back-btn" class="import-back-btn">
+            <i data-lucide="arrow-left"></i>
+            Назад
+          </button>
+          <button id="import-save-btn" class="import-save-btn">
+            <i data-lucide="check"></i>
+            Добавить выбранные (<span id="selected-count">0</span>)
+          </button>
+        </div>
+      </div>
+
+      <!-- Unrecognized words review section -->
+      <div id="import-unrecognized-review" class="hidden">
+        <div class="import-section-divider"></div>
+        <h4 class="import-section-title">Нераспознанные слова для ревью</h4>
+        <div id="unrecognized-review-list"></div>
+      </div>
+    </div>
   </div>
 
   <div id="loading-overlay" class="loading-overlay hidden">
