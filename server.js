@@ -19,9 +19,11 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      scriptSrc: ["'self'", "https://unpkg.com"],
       imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'"],
     },
   },
 }));
@@ -120,6 +122,12 @@ function isValidObjectId(id) {
 
 // Helper function to call Poe API (OpenAI-compatible)
 async function callPoeAPI(messages, maxTokens = 1024) {
+  if (!POE_API_KEY) {
+    throw new Error('POE_API_KEY is not configured');
+  }
+
+  console.log(`Calling Poe API with model Claude-3.5-Sonnet, ${messages.length} messages`);
+
   const response = await fetch(`${POE_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -140,6 +148,7 @@ async function callPoeAPI(messages, maxTokens = 1024) {
   }
 
   const data = await response.json();
+  console.log('Poe API response received successfully');
   return data.choices[0].message.content;
 }
 
