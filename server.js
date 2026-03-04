@@ -62,6 +62,12 @@ app.use('/api/', apiLimiter);
 const POE_API_KEY = process.env.POE_API_KEY;
 const POE_BASE_URL = 'https://api.poe.com/v1';
 
+if (!POE_API_KEY) {
+  console.error('WARNING: POE_API_KEY is not set in .env file');
+} else {
+  console.log(`Poe API key loaded (ends with ...${POE_API_KEY.slice(-6)})`);
+}
+
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('Connected to MongoDB'))
@@ -128,8 +134,9 @@ async function callPoeAPI(messages, maxTokens = 1024) {
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Poe API error: ${response.status}`);
+    const errorBody = await response.text();
+    console.error(`Poe API error ${response.status}:`, errorBody);
+    throw new Error(`Poe API error: ${response.status} - ${errorBody}`);
   }
 
   const data = await response.json();
