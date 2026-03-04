@@ -19,9 +19,11 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      scriptSrc: ["'self'", "https://unpkg.com"],
       imgSrc: ["'self'", "data:"],
+      connectSrc: ["'self'"],
     },
   },
 }));
@@ -61,6 +63,12 @@ app.use('/api/', apiLimiter);
 
 const POE_API_KEY = process.env.POE_API_KEY;
 const POE_BASE_URL = 'https://api.poe.com/v1';
+
+if (!POE_API_KEY) {
+  console.error('WARNING: POE_API_KEY is not set in .env file');
+} else {
+  console.log(`Poe API key loaded (ends with ...${POE_API_KEY.slice(-6)})`);
+}
 
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI)
@@ -114,6 +122,12 @@ function isValidObjectId(id) {
 
 // Helper function to call Poe API (OpenAI-compatible)
 async function callPoeAPI(messages, maxTokens = 1024) {
+  if (!POE_API_KEY) {
+    throw new Error('POE_API_KEY is not configured');
+  }
+
+  console.log(`Calling Poe API with model Claude-3.5-Sonnet, ${messages.length} messages`);
+
   const response = await fetch(`${POE_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -121,18 +135,20 @@ async function callPoeAPI(messages, maxTokens = 1024) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'Claude-3.5-Sonnet',
+      model: 'Claude-Sonnet-3.7',
       messages: messages,
       max_tokens: maxTokens,
     }),
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Poe API error: ${response.status}`);
+    const errorBody = await response.text();
+    console.error(`Poe API error ${response.status}:`, errorBody);
+    throw new Error(`Poe API error: ${response.status} - ${errorBody}`);
   }
 
   const data = await response.json();
+  console.log('Poe API response received successfully');
   return data.choices[0].message.content;
 }
 
