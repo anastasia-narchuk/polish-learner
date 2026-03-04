@@ -135,7 +135,7 @@ async function callPoeAPI(messages, maxTokens = 1024) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'Claude-3.5-Sonnet',
+      model: 'Claude-Sonnet-3.7',
       messages: messages,
       max_tokens: maxTokens,
     }),
